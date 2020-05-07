@@ -15,9 +15,9 @@ letters = { 1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e', 6: 'f', 7: 'g', 8: 'h', 9: '
 11: 'k', 12: 'l', 13: 'm', 14: 'n', 15: 'o', 16: 'p', 17: 'q', 18: 'r', 19: 's', 20: 't',
 21: 'u', 22: 'v', 23: 'w', 24: 'x', 25: 'y', 26: 'z', 27: '-'}
 
-# Define the upper and lower boundaries for a color to be considered "Blue"
-blueLower = np.array([45,100,100])
-blueUpper = np.array([75,255,255])
+# Define the upper and lower boundaries for a color to be considered "Green"
+greenLower = np.array([36,25,25])
+greenUpper = np.array([70,255,255])
 
 # Define a 5x5 kernel for erosion and dilation
 kernel = np.ones((5, 5), np.uint8)
@@ -50,36 +50,37 @@ while(camera.isOpened()):
     # Grab the frame
     ret, frame = camera.read()
     #Setting frame size
+        # 3 -> Width ; 4 -> Height
     camera.set(3,640)
     camera.set(4,480)
     if ret == True:
         #Flips image horizontally
         frame = cv2.flip(frame, 1)
-        #converting frmae image into different representations
+        #converting frame image from BGR into HSV representation
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
-        #Check to see if we have reached the end of the video 
-        #(useful when input is a video file not a live video stream)
+        ##Check to see if we have reached the end of the video 
+        ##(useful when input is a video file not a live video stream)
         #if not grabbed:
         #   break
 
-        # Determine which pixels fall within the blue boundaries
-        blueMask = cv2.inRange(hsv, blueLower, blueUpper)
+        # Determine which pixels fall within the green boundaries
+        greenMask = cv2.inRange(hsv, greenLower, greenUpper)
 
         #Smoothing the image identified
             #Erode-> decreases thickness of image (removes white noises)
             #dilate-> Increases thickness of image
-            #morphologyEx(MORPH_OPEN)-> removes noise in image
+            #morphologyEx(MORPH_OPEN)-> Keeps only the outline of the object
 
             #While performing noise removal, erosion is followed by dilation to make it larger in size so that easy to process
-        blueMask = cv2.erode(blueMask, kernel, iterations=2)
-        blueMask = cv2.morphologyEx(blueMask, cv2.MORPH_OPEN, kernel)
-        blueMask = cv2.dilate(blueMask, kernel, iterations=1)
+        greenMask = cv2.erode(greenMask, kernel, iterations=2)
+        greenMask = cv2.morphologyEx(greenMask, cv2.MORPH_OPEN, kernel)
+        greenMask = cv2.dilate(greenMask, kernel, iterations=1)
 
-        # FINDING CONTOURS(BLUE BOTTLE CAP) 
-            #RETR_EXTRENAL-> considers only exterior contours and ignores nested contours
-            #CHAIN_APPOX_SIMPLE-> representing contours by eliminating redundant points (reduces memory needed)
-        (_, cnts, _) = cv2.findContours(blueMask.copy(), cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
+        # FINDING CONTOURS(GREEN BOTTLE CAP) 
+            #RETR_EXTRENAL-> considers only exterior/eldest contours and ignores nested contours
+            #CHAIN_APPOX_SIMPLE-> representing contours by only end points of each line in contour (reduces memory needed)
+        (_, cnts, _) = cv2.findContours(greenMask.copy(), cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
 
         if len(cnts) > 0:
             # Sorting contours descendingly based on area
@@ -88,27 +89,27 @@ while(camera.isOpened()):
             cnt = sorted(cnts, key = cv2.contourArea, reverse = True)[0]
             # Get the radius and center of the enclosing circle around the found contour
             ((x, y), radius) = cv2.minEnclosingCircle(cnt)
-            # Draw the circle around the contour , set the colour and thickness
+            # Draw the circle in the frame around the found contour , set the colour and thickness
             cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
             # Get the moments to calculate the center of the contour (in this case Circle)
             M = cv2.moments(cnt)
             #Formula to calculate center based on moments
             center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
-            #Appending the foubd center point into deque at the start
+            #Appending the found center point into deque at the start
             points.appendleft(center)
 
 
-    #########################################################################################################################################################
+#########################################################################################################################################################
 
-        # SCRAPING THE WRITING
+        # DISPLAYING THE WRITING IN FRAME
         # Connect the points with a line
             for i in range(1, len(points)):
                     #If value is NONE(zero), means no need to draw the line
                     if points[i - 1] is None or points[i] is None:
                             continue
-                    # Frame is for displaying
+                    # Drawing the line in frame by tracking the center of the object
                     cv2.line(frame, points[i - 1], points[i], (0, 204, 204), 2)
-                    # Blackboard is for what model should see, so the color, line-thickness is different
+                    # Blackboard is for what model should see, so the color, line-thickness are different
                     cv2.line(blackboard, points[i - 1], points[i], (255, 255, 255), 8)
 
         #SCRAPING THE WRITING AND PASSING IT TO MODEL
@@ -119,8 +120,8 @@ while(camera.isOpened()):
             blackboard_gray = cv2.cvtColor(blackboard, cv2.COLOR_BGR2GRAY)
 
             #Blurring is done to smoothen the edges and reduce edges
-                #Gaussian and median blur - reduce image noise and details
-                #median blue-> places median value in center -> size of kernel should be replaced
+                #Gaussian and median blur - reduce image noise
+                #median blur-> places median value in center
             blur1 = cv2.medianBlur(blackboard_gray, 15)
                 #size of kernel and sigma(SD of X and Y) are specified
             blur1 = cv2.GaussianBlur(blur1, (5, 5), 0)
@@ -129,7 +130,7 @@ while(camera.isOpened()):
             thresh1 = cv2.threshold(blur1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
             # Finding contours on the blackboard
                 #RETR_TREE-> It retrieves all the contours and creates a full family hierarchy list
-                #CHAIN_APPOX_SIMPLE-> representing contours by eliminating redundant points (reduces memory needed)
+                #CHAIN_APPOX_NONE-> representing contours using all points of the contour
             blackboard_cnts = cv2.findContours(thresh1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)[1]
 
             #If atleast one contour is found, arrange them in descending order and take the largest contour
@@ -158,7 +159,7 @@ while(camera.isOpened()):
 
             
         #Dispaly preciction as string in the frame
-        #Specifying coordinates, font style, font size, color and thickness
+        #Specifying coordinates, font style, font scale, color and thickness
         cv2.putText(frame, "Multilayer Perceptron : " +
                     str(letters[int(prediction1)+1]), (10, 410), cv2.FONT_HERSHEY_SIMPLEX, 0.7,(255, 215, 0), 2)
 
@@ -176,21 +177,3 @@ while(camera.isOpened()):
 # Cleanup the camera and close any open windows
 camera.release()
 cv2.destroyAllWindows()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
