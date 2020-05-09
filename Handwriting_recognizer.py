@@ -79,7 +79,7 @@ while(camera.isOpened()):
 
         # FINDING CONTOURS(GREEN BOTTLE CAP) 
             #RETR_EXTRENAL-> considers only exterior/eldest contours and ignores nested contours
-            #CHAIN_APPOX_SIMPLE-> representing contours by only end points of each line in contour (reduces memory needed)
+            #CHAIN_APPROX_SIMPLE-> representing contours by only end points of each line in contour (reduces memory needed)
         (_, cnts, _) = cv2.findContours(greenMask.copy(), cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
 
         if len(cnts) > 0:
@@ -130,7 +130,7 @@ while(camera.isOpened()):
             thresh1 = cv2.threshold(blur1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
             # Finding contours on the blackboard
                 #RETR_TREE-> It retrieves all the contours and creates a full family hierarchy list
-                #CHAIN_APPOX_NONE-> representing contours using all points of the contour
+                #CHAIN_APPROX_NONE-> representing contours using all points of the contour
             blackboard_cnts = cv2.findContours(thresh1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)[1]
 
             #If atleast one contour is found, arrange them in descending order and take the largest contour
